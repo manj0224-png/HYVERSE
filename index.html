@@ -554,17 +554,17 @@ document.getElementById('photoInput').addEventListener('change', (e) => {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = (ev) => {
-    // 이미지 압축
+    // 이미지 압축 (모바일 대응 강화)
     const image = new Image();
     image.onload = () => {
       const canvas = document.createElement('canvas');
-      const MAX = 600;
+      const MAX = 400;
       let w = image.width, h = image.height;
-      if (w > h) { if (w > MAX) { h = h * MAX / w; w = MAX; } }
-      else { if (h > MAX) { w = w * MAX / h; h = MAX; } }
+      if (w > h) { if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; } }
+      else { if (h > MAX) { w = Math.round(w * MAX / h); h = MAX; } }
       canvas.width = w; canvas.height = h;
       canvas.getContext('2d').drawImage(image, 0, 0, w, h);
-      photoDataUrl = canvas.toDataURL('image/jpeg', 0.6);
+      photoDataUrl = canvas.toDataURL('image/jpeg', 0.4);
       const area = document.getElementById('uploadArea');
       const existing = area.querySelector('img.preview');
       if (existing) existing.remove();
