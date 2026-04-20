@@ -2,8 +2,15 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>HYVERSE Running Crew</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="HYVERSE">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#06080f">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.png">
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;900&family=Share+Tech+Mono&display=swap');
   *{box-sizing:border-box;margin:0;padding:0}
@@ -547,16 +554,28 @@ document.getElementById('photoInput').addEventListener('change', (e) => {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = (ev) => {
-    photoDataUrl = ev.target.result;
-    const area = document.getElementById('uploadArea');
-    const existing = area.querySelector('img.preview');
-    if (existing) existing.remove();
-    const img = document.createElement('img');
-    img.src = photoDataUrl;
-    img.className = 'preview';
-    area.appendChild(img);
-    document.getElementById('uploadPlaceholder').style.display = 'none';
-    document.getElementById('submitPhotoBtn').disabled = false;
+    // 이미지 압축
+    const image = new Image();
+    image.onload = () => {
+      const canvas = document.createElement('canvas');
+      const MAX = 600;
+      let w = image.width, h = image.height;
+      if (w > h) { if (w > MAX) { h = h * MAX / w; w = MAX; } }
+      else { if (h > MAX) { w = w * MAX / h; h = MAX; } }
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(image, 0, 0, w, h);
+      photoDataUrl = canvas.toDataURL('image/jpeg', 0.6);
+      const area = document.getElementById('uploadArea');
+      const existing = area.querySelector('img.preview');
+      if (existing) existing.remove();
+      const img = document.createElement('img');
+      img.src = photoDataUrl;
+      img.className = 'preview';
+      area.appendChild(img);
+      document.getElementById('uploadPlaceholder').style.display = 'none';
+      document.getElementById('submitPhotoBtn').disabled = false;
+    };
+    image.src = ev.target.result;
   };
   reader.readAsDataURL(file);
 });
@@ -588,6 +607,13 @@ function showToast(msg) {
 document.getElementById('input-newname').addEventListener('keydown', e => { if(e.key==='Enter') window.addMember(); });
 document.getElementById('input-km').addEventListener('keydown', e => { if(e.key==='Enter') window.logRun(); });
 
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js');
+  });
+}
 </script>
 </body>
 </html>
