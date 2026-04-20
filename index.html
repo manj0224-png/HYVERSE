@@ -178,6 +178,40 @@
   ::-webkit-scrollbar{width:4px;height:4px}
   ::-webkit-scrollbar-track{background:transparent}
   ::-webkit-scrollbar-thumb{background:rgba(66,165,245,.2);border-radius:2px}
+
+  /* Calendar */
+  .cal-wrap{margin-bottom:24px}
+  .cal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+  .cal-title{font-family:'Share Tech Mono',monospace;font-size:18px;color:#64b5f6;letter-spacing:2px}
+  .cal-nav{background:rgba(255,255,255,.04);border:1px solid rgba(66,165,245,.18);border-radius:8px;
+    padding:6px 14px;color:#90caf9;font-family:'Noto Sans KR',sans-serif;font-size:13px;
+    font-weight:700;cursor:pointer;transition:all .2s}
+  .cal-nav:hover{background:rgba(21,101,192,.25);border-color:#42a5f5}
+  .cal-member-select{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+  .cal-mem-btn{padding:6px 14px;border-radius:20px;border:1px solid rgba(66,165,245,.18);
+    background:transparent;color:rgba(232,244,253,.38);font-family:'Noto Sans KR',sans-serif;
+    font-size:12px;font-weight:700;cursor:pointer;transition:all .2s}
+  .cal-mem-btn.on{background:rgba(21,101,192,.28);border-color:#42a5f5;color:#90caf9}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+  .cal-dow{text-align:center;font-size:10px;font-weight:700;color:rgba(232,244,253,.3);
+    padding:4px 0;font-family:'Share Tech Mono',monospace;letter-spacing:1px}
+  .cal-dow.sun{color:rgba(255,100,100,.5)}
+  .cal-dow.sat{color:rgba(100,150,255,.5)}
+  .cal-day{aspect-ratio:1;border-radius:8px;display:flex;align-items:center;justify-content:center;
+    font-size:12px;font-weight:600;color:rgba(232,244,253,.25);position:relative;
+    background:rgba(255,255,255,.02);border:1px solid transparent;transition:all .2s}
+  .cal-day.has-run{background:rgba(21,101,192,.25);border-color:rgba(66,165,245,.4);
+    color:#90caf9;font-weight:900}
+  .cal-day.has-run::after{content:'🏃';position:absolute;bottom:2px;right:2px;font-size:8px}
+  .cal-day.today{border-color:rgba(66,165,245,.5);color:#e8f4fd}
+  .cal-day.empty{background:transparent;border-color:transparent}
+  .cal-day.sun{color:rgba(255,100,100,.3)}
+  .cal-day.sun.has-run{color:#ff8a80}
+  .cal-summary{display:flex;gap:10px;margin-top:16px}
+  .cal-stat{flex:1;background:rgba(255,255,255,.03);border:1px solid rgba(66,165,245,.13);
+    border-radius:12px;padding:12px;text-align:center}
+  .cal-stat-val{font-family:'Share Tech Mono',monospace;font-size:22px;color:#64b5f6}
+  .cal-stat-lbl{font-size:10px;color:rgba(232,244,253,.3);margin-top:3px;font-weight:700;letter-spacing:1px}
 </style>
 </head>
 <body>
@@ -210,6 +244,7 @@
     <button class="tbtn on" onclick="switchTab('leaderboard',this)">🏆 리더보드</button>
     <button class="tbtn" onclick="switchTab('attendance',this)">📋 출석</button>
     <button class="tbtn" onclick="switchTab('photos',this)">📸 인증샷</button>
+    <button class="tbtn" onclick="switchTab('calendar',this)">🗓️ 캘린더</button>
   </div>
 
   <div id="tab-leaderboard">
@@ -227,6 +262,19 @@
 
   <div id="tab-photos" style="display:none">
     <div id="photos-list"><div class="loading">🦋 데이터 불러오는 중...</div></div>
+  </div>
+
+  <div id="tab-calendar" style="display:none">
+    <div class="cal-wrap">
+      <div class="cal-header">
+        <button class="cal-nav" onclick="changeMonth(-1)">＜</button>
+        <div class="cal-title" id="cal-title">2026.04</div>
+        <button class="cal-nav" onclick="changeMonth(1)">＞</button>
+      </div>
+      <div class="cal-member-select" id="cal-member-select"></div>
+      <div class="cal-grid" id="cal-grid"></div>
+      <div class="cal-summary" id="cal-summary"></div>
+    </div>
   </div>
 </div>
 
@@ -317,6 +365,9 @@ let sortBy = "totalKm";
 let activeTab = "leaderboard";
 let currentMemberId = null;
 let photoDataUrl = null;
+let calYear = new Date().getFullYear();
+let calMonth = new Date().getMonth();
+let calMemberId = null;
 
 // 로고 초기화
 document.getElementById("logoImg").src = DEFAULT_LOGO;
@@ -463,9 +514,13 @@ window.switchTab = (tab, btn) => {
   activeTab = tab;
   document.querySelectorAll('.tbtn').forEach(b=>b.classList.remove('on'));
   btn.classList.add('on');
-  ['leaderboard','attendance','photos'].forEach(t => {
+  ['leaderboard','attendance','photos','calendar'].forEach(t => {
     document.getElementById(`tab-${t}`).style.display = t===tab?'block':'none';
   });
+  if (tab === 'calendar') {
+    renderCalendarMemberSelect();
+    renderCalendar();
+  }
 };
 
 window.setSort = (key, btn) => {
@@ -538,6 +593,11 @@ window.logRun = () => {
   const pace = document.getElementById('input-pace').value.trim();
   const m = members[currentMemberId];
   if (!m) return;
+  const now = new Date();
+  const dateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  // 날짜별 기록 저장
+  const runRef = push(ref(db, `members/${currentMemberId}/runs`));
+  set(runRef, { km, pace: pace||'-', date: dateStr });
   update(ref(db, `members/${currentMemberId}`), {
     sessions: (m.sessions||0) + 1,
     totalKm: parseFloat(((m.totalKm||0) + km).toFixed(1)),
@@ -547,6 +607,82 @@ window.logRun = () => {
   closeModal('modal-run');
   showToast('기록 완료! 💨');
 };
+
+// 캘린더
+window.changeMonth = (dir) => {
+  calMonth += dir;
+  if (calMonth > 11) { calMonth = 0; calYear++; }
+  if (calMonth < 0) { calMonth = 11; calYear--; }
+  renderCalendar();
+};
+
+window.selectCalMember = (id, btn) => {
+  calMemberId = id;
+  document.querySelectorAll('.cal-mem-btn').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  renderCalendar();
+};
+
+function renderCalendarMemberSelect() {
+  const arr = Object.entries(members).map(([id,m]) => ({id,...m}));
+  if (!calMemberId && arr.length > 0) calMemberId = arr[0].id;
+  document.getElementById('cal-member-select').innerHTML = arr.map(m => `
+    <button class="cal-mem-btn ${m.id===calMemberId?'on':''}" onclick="selectCalMember('${m.id}',this)">${m.name}</button>
+  `).join('');
+}
+
+function renderCalendar() {
+  const DAYS = ['일','월','화','수','목','금','토'];
+  const m = members[calMemberId];
+  if (!m) return;
+
+  // 이 멤버의 runs에서 날짜 Set 만들기
+  const runDates = new Set();
+  const runsByDate = {};
+  Object.values(m.runs||{}).forEach(r => {
+    if (r.date) {
+      runDates.add(r.date);
+      if (!runsByDate[r.date]) runsByDate[r.date] = [];
+      runsByDate[r.date].push(r);
+    }
+  });
+
+  document.getElementById('cal-title').textContent =
+    `${calYear}.${String(calMonth+1).padStart(2,'0')}`;
+
+  const firstDay = new Date(calYear, calMonth, 1).getDay();
+  const daysInMonth = new Date(calYear, calMonth+1, 0).getDate();
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+
+  let html = DAYS.map((d,i) => `<div class="cal-dow ${i===0?'sun':i===6?'sat':''}">${d}</div>`).join('');
+
+  // 빈칸
+  for (let i = 0; i < firstDay; i++) html += `<div class="cal-day empty"></div>`;
+
+  // 날짜
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const dow = new Date(calYear, calMonth, d).getDay();
+    const hasRun = runDates.has(dateStr);
+    const isToday = dateStr === todayStr;
+    const cls = ['cal-day', hasRun?'has-run':'', isToday?'today':'', dow===0?'sun':dow===6?'sat':''].filter(Boolean).join(' ');
+    html += `<div class="${cls}">${d}</div>`;
+  }
+
+  document.getElementById('cal-grid').innerHTML = html;
+
+  // 이번달 통계
+  const thisMonthRuns = Object.values(m.runs||{}).filter(r => r.date && r.date.startsWith(`${calYear}-${String(calMonth+1).padStart(2,'0')}`));
+  const monthDays = new Set(thisMonthRuns.map(r=>r.date)).size;
+  const monthKm = thisMonthRuns.reduce((s,r) => s+(r.km||0), 0).toFixed(1);
+
+  document.getElementById('cal-summary').innerHTML = `
+    <div class="cal-stat"><div class="cal-stat-val">${monthDays}</div><div class="cal-stat-lbl">이번달 횟수</div></div>
+    <div class="cal-stat"><div class="cal-stat-val">${monthKm}</div><div class="cal-stat-lbl">이번달 KM</div></div>
+    <div class="cal-stat"><div class="cal-stat-val">${m.streak||0}</div><div class="cal-stat-lbl">연속 🔥</div></div>
+  `;
+}
 
 // Photo upload
 document.getElementById('photoInput').addEventListener('change', (e) => {
